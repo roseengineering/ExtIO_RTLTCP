@@ -42,7 +42,7 @@ static char gain[BUF_SIZE];
 static char correction[BUF_SIZE];
 static char directsampling[BUF_SIZE];
 
-DWORD WINAPI consumer(LPVOID lpParam)
+static DWORD WINAPI consumer(LPVOID lpParam)
 {
     typedef int16_t iq_t[2];
     typedef uint8_t raw_t[2]; 
@@ -69,7 +69,7 @@ DWORD WINAPI consumer(LPVOID lpParam)
     return 0;
 }
 
-bool issue_command(int cmd, int param)
+static bool issue_command(int cmd, int param)
 {
     #pragma pack(push, 1)
     struct {
@@ -84,7 +84,7 @@ bool issue_command(int cmd, int param)
     return ret == sizeof(command);
 }
 
-void trim(char *dest, char *s) {
+static void trim(char *dest, char *s) {
     int l = strlen(s);
     while(isspace(s[l - 1])) --l;
     while(*s && isspace(*s)) ++s, --l;
@@ -142,6 +142,20 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
     }
 
     return FALSE;
+}
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
+{
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+        hinst=hModule;
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
 }
 
 //////////////////////////////////////
@@ -277,19 +291,5 @@ void LIBAPI ShowGUI(void)
 {
     HWND hDlg = CreateDialog(hinst, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
     ShowWindow(hDlg, SW_SHOW);
-}
-
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
-{
-    switch (ul_reason_for_call)
-    {
-    case DLL_PROCESS_ATTACH:
-        hinst=hModule;
-    case DLL_THREAD_ATTACH:
-    case DLL_THREAD_DETACH:
-    case DLL_PROCESS_DETACH:
-        break;
-    }
-    return TRUE;
 }
 
