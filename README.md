@@ -76,7 +76,8 @@ page fault.  More testing or debugging is needed.
 A new thread is created every time the start 
 button pressed and a connection is made to the rtl\_tcp
 server.  Any prior threads are terminated.  Maybe this
-is done improperly.
+is done improperly.  Threading should probably be switched
+to pthreads instead of win32.
 
 I have not tested the ExtIO DLL under Windows yet.
 
