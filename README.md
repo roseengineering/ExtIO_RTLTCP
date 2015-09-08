@@ -56,6 +56,10 @@ A blank value for an option (other than sample rate)
 will cause that configuration option not to be set 
 when the connection with the rtl\_tcp server is started.
 
+For the direct sampling GUI option, a 0 means disable
+direct sampling, a one means use the I channel input,
+and a two means use the Q channel.
+
 ## Issues
 
 A sampling rate of 300000 seems to be too small for HDSDR,
@@ -74,9 +78,6 @@ button pressed and a connection is made to the rtl\_tcp
 server.  Any prior threads are terminated.  Maybe this
 is done improperly.
 
-The direct sampling GUI option needs to be replaced with
-a text box so one can choose between the I or Q input.
-
 I have not tested the ExtIO DLL under Windows yet.
 
 ## FYI
@@ -91,7 +92,7 @@ display is slow since Crouton is unaccelerated.
 However CubicSDR cannot use rtl\_tcp or any other network server yet.  
 
 There is a rtl\_tcp like server for SDRPlay. I have not tried it.  However
-the software has to down convert the Miric chipset's samples from 12 bits to 8 bits to serve them.  It would be nice to provide a GUI option in this ExtIO DLL for 16 bit samples.
+the software has to down convert the Mirics chipset's samples from 12 bits to 8 bits to serve them.  It would be nice to provide a GUI option in this ExtIO DLL for 16 bit samples.
 
 It would also be nice to know what other software
 works under WINE using this ExtIO DLL.  

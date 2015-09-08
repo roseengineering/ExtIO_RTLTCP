@@ -19,17 +19,18 @@ STYLE DS_3DLOOK | DS_CENTER | DS_MODALFRAME | DS_SHELLFONT | WS_CAPTION | WS_VIS
 CAPTION "ExtIO RTLTCP"
 FONT 8, "Ms Shell Dlg"
 {
-    LTEXT           "Hostname", 0, 40, 25, 36, 9, SS_LEFT, WS_EX_LEFT
     EDITTEXT        IDC_HOSTNAME, 85, 25, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
-    LTEXT           "Port", 0, 60, 45, 14, 9, SS_LEFT, WS_EX_LEFT
     EDITTEXT        IDC_PORT, 85, 45, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
-    LTEXT           "Sample Rate", 0, 30, 65, 45, 9, SS_LEFT, WS_EX_LEFT
     EDITTEXT        IDC_SAMPLE_RATE, 85, 65, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
-    LTEXT           "Gain", 0, 55, 85, 17, 9, SS_LEFT, WS_EX_LEFT
     EDITTEXT        IDC_GAIN, 85, 85, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
-    LTEXT           "Freq Correction", 0, 20, 105, 55, 9, SS_LEFT, WS_EX_LEFT
     EDITTEXT        IDC_CORRECTION, 85, 105, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
-    AUTOCHECKBOX    "Direct Sampling", IDC_DIRECT_SAMPLING, 85, 130, 71, 8, 0, WS_EX_LEFT
+    EDITTEXT        IDC_DIRECT_SAMPLING, 85, 125, 136, 12, ES_AUTOHSCROLL, WS_EX_LEFT
     DEFPUSHBUTTON   "OK", IDOK, 115, 160, 50, 14, 0, WS_EX_LEFT
     PUSHBUTTON      "Cancel", IDCANCEL, 180, 160, 50, 14, 0, WS_EX_LEFT
+    LTEXT           "Hostname", 0, 40, 25, 36, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Port", 0, 60, 45, 14, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Sample Rate", 0, 30, 65, 45, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Freq Correction", 0, 20, 105, 55, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Direct Sampling", 0, 20, 125, 56, 9, SS_LEFT, WS_EX_LEFT
+    LTEXT           "Gain", 0, 58, 85, 17, 9, SS_LEFT, WS_EX_LEFT
 }

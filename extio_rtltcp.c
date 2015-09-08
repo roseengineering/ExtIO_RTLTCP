@@ -33,14 +33,14 @@
 static void (* callback)(int, int, float, void *);
 static SOCKET sock;
 static HANDLE thread;
+static HMODULE hinst;
 
 static char hostname[BUF_SIZE];
 static char port[BUF_SIZE];
 static char samplerate[BUF_SIZE];
 static char gain[BUF_SIZE];
 static char correction[BUF_SIZE];
-static bool directsampling = false;
-
+static char directsampling[BUF_SIZE];
 
 DWORD WINAPI consumer(LPVOID lpParam)
 {
@@ -108,21 +108,16 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
             case IDOK:
                 GetDlgItemText(hDlg, IDC_HOSTNAME, buf, BUF_SIZE);
                 trim(hostname, buf);
-
                 GetDlgItemText(hDlg, IDC_PORT, buf, BUF_SIZE);
                 trim(port, buf);
-
                 GetDlgItemText(hDlg, IDC_SAMPLE_RATE, buf, BUF_SIZE);
                 trim(samplerate, buf);
-
                 GetDlgItemText(hDlg, IDC_GAIN, buf, BUF_SIZE);
                 trim(gain, buf);
-
                 GetDlgItemText(hDlg, IDC_CORRECTION, buf, BUF_SIZE);
                 trim(correction, buf);
-
-                directsampling = IsDlgButtonChecked(hDlg, IDC_DIRECT_SAMPLING); 
-
+                GetDlgItemText(hDlg, IDC_DIRECT_SAMPLING, buf, BUF_SIZE);
+                trim(directsampling, buf);
                 EndDialog(hDlg, wParam); 
                 return TRUE;
             }
@@ -134,7 +129,7 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
             SetDlgItemText(hDlg, IDC_SAMPLE_RATE, samplerate);
             SetDlgItemText(hDlg, IDC_GAIN, gain);
             SetDlgItemText(hDlg, IDC_CORRECTION, correction);
-            CheckDlgButton(hDlg, IDC_DIRECT_SAMPLING, directsampling);
+            SetDlgItemText(hDlg, IDC_DIRECT_SAMPLING, directsampling);
             return TRUE;
         
         case WM_CLOSE:
@@ -238,11 +233,15 @@ int LIBAPI StartHW(long freq)
         }
     }
 
+    // set frequency correction
     if (strlen(correction)) {
         issue_command(SET_FREQ_CORRECTION, atoi(correction));
     }
     
-    issue_command(SET_DIRECT_SAMPLING, directsampling);
+    // set direct sampling mode
+    if (strlen(directsampling)) {
+        issue_command(SET_DIRECT_SAMPLING, atoi(directsampling));
+    }
 
     // IQ sample pairs (divisible by 512)
     return SAMPLE_PAIRS;
@@ -250,7 +249,7 @@ int LIBAPI StartHW(long freq)
 
 void LIBAPI StopHW(void)
 {
-    if (sock != INVALID_SOCKET) closesocket(sock);
+    closesocket(sock);
 }
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
@@ -274,29 +273,23 @@ long LIBAPI GetHWSR(void)
     return atoi(samplerate);
 }
 
-HMODULE hInst;
-
 void LIBAPI ShowGUI(void)
 {
-    HWND hDlg = CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
+    HWND hDlg = CreateDialog(hinst, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
     ShowWindow(hDlg, SW_SHOW);
 }
 
-
-BOOL APIENTRY DllMain( HMODULE hModule,
-                       DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
-					 )
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
-	switch (ul_reason_for_call)
-	{
-	case DLL_PROCESS_ATTACH:
-        hInst=hModule;
-	case DLL_THREAD_ATTACH:
-	case DLL_THREAD_DETACH:
-	case DLL_PROCESS_DETACH:
-		break;
-	}
-	return TRUE;
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+        hinst=hModule;
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
 }
 
