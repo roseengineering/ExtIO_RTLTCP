@@ -37,8 +37,9 @@ typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
 static SOCKET sock;
-static HANDLE thread;
+static HANDLE thread = NULL;
 static HMODULE hinst;
+static CRITICAL_SECTION cs;
 
 static buf_t hostname;
 static buf_t port;
@@ -52,12 +53,14 @@ static DWORD WINAPI consumer(LPVOID lpParam)
     typedef int16_t iq_t[2];
     typedef uint8_t raw_t[2]; 
 
-    int ret, i, k, n;
     static iq_t iq[SAMPLE_PAIRS];
     static raw_t raw[SAMPLE_PAIRS];
     
-    i = 0;
-    n = SAMPLE_PAIRS * sizeof(raw_t);
+    int k, ret;
+    int i = 0;
+    int n = SAMPLE_PAIRS * sizeof(raw_t);
+
+    EnterCriticalSection(&cs);
     while (sock != INVALID_SOCKET) {
         ret = recv(sock, (char *) &raw[i], n - i, 0);
         if (ret == 0 || ret == SOCKET_ERROR) break;
@@ -71,6 +74,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
             callback(SAMPLE_PAIRS, 0, 0, iq);
         }        
     }
+    LeaveCriticalSection(&cs);
     return 0;
 }
 
@@ -175,7 +179,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 
 bool LIBAPI InitHW(char *name, char *model, int *type)
 {
-    validate();
     *type = 3; // 16 bit, little endian
     strcpy(name, TITLE);
     strcpy(model, "");
@@ -186,16 +189,13 @@ bool LIBAPI OpenHW(void)
 {
     WSADATA wsd;
     if (WSAStartup(MAKEWORD(2,2), &wsd) != 0) return false;
-    thread = NULL;
+    validate();
+    InitializeCriticalSection(&cs);
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
-    if (thread != NULL) {
-        WaitForSingleObject(thread, INFINITE);
-        CloseHandle(thread);
-    }
     WSACleanup();
 }
 
@@ -205,9 +205,11 @@ int LIBAPI StartHW(long freq)
     SOCKADDR_IN server;
     struct hostent *host;
 
+    // close thread 
     if (thread != NULL) {
         WaitForSingleObject(thread, INFINITE);
         CloseHandle(thread);
+        thread = NULL;
     }
 
     // open socket
@@ -302,4 +304,5 @@ void LIBAPI ShowGUI(void)
     HWND hDlg = CreateDialog(hinst, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
     ShowWindow(hDlg, SW_SHOW);
 }
+
 

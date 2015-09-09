@@ -70,14 +70,10 @@ at slower sampling rates.
 A GUI option could be added to set this manually.  At
 the moment this value is hardcoded.
 
-I have had some issues with threading.  Sometimes 
-when quitting HDSDR, WINE crashes giving a
-page fault.  More testing or debugging is needed.
-A new thread is created every time the start 
-button pressed and a connection is made to the rtl\_tcp
-server.  Any prior threads are terminated.  Maybe this
-is done improperly.  Threading should probably be switched
-to pthreads instead of win32.
+I previously had issues with threading.  Sometimes 
+when quitting HDSDR, WINE crashed with a
+page fault.  But I fixed the issue by wrapping the
+threading code in a critical section.
 
 I have not tested the ExtIO DLL under Windows yet.
 
