@@ -1,4 +1,3 @@
-
 // Copyright 2015 George Magiros
 // Use subject to the terms of the MIT License
 // version 1.0.0
@@ -11,36 +10,42 @@
 #include <string.h>
 #include "resource.h"
 
-#define LIBAPI __declspec(dllexport) __stdcall
+// rtl_tcp constants
 
-#define SET_CENTER_FREQ 1
-#define SET_SAMPLE_RATE 2
+#define SET_CENTER_FREQ     1
+#define SET_SAMPLE_RATE     2
 #define SET_TUNER_GAIN_MODE 3  // 0 or 1
-#define SET_TUNER_GAIN 4  // gain = param / 10.0
-#define SET_FREQ_CORRECTION 5
-#define SET_DIRECT_SAMPLING 9 // 0 or 1
+#define SET_TUNER_GAIN      4  // gain * 10
+#define SET_FREQ_CORRECTION 5  // khz
+#define SET_DIRECT_SAMPLING 9  // 0, 1(I), 2(Q)
 
-#define STATUS_SAMPLE_RATE 100
-    
+// ExtIO constants
+
+#define LIBAPI __declspec(dllexport) __stdcall
 #define TITLE "ExtIO_RTLTCP"
 #define BUF_SIZE 1024
 #define SAMPLE_PAIRS (4 * 1024)
+#define STATUS_SAMPLE_RATE 100
+
+// defaults
 
 #define HOSTNAME   "localhost"
 #define PORT       "1234"
 #define SAMPLERATE "1800000"
+
+typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
 static SOCKET sock;
 static HANDLE thread;
 static HMODULE hinst;
 
-static char hostname[BUF_SIZE];
-static char port[BUF_SIZE];
-static char samplerate[BUF_SIZE];
-static char gain[BUF_SIZE];
-static char correction[BUF_SIZE];
-static char directsampling[BUF_SIZE];
+static buf_t hostname;
+static buf_t port;
+static buf_t samplerate;
+static buf_t gain;
+static buf_t correction;
+static buf_t directsampling;
 
 static DWORD WINAPI consumer(LPVOID lpParam)
 {
@@ -92,9 +97,16 @@ static void trim(char *dest, char *s) {
     dest[l] = 0;
 }
 
+static void validate(void)
+{
+    if (strlen(hostname) == 0) strncpy(hostname, HOSTNAME, BUF_SIZE);
+    if (strlen(port) == 0) strncpy(port, PORT, BUF_SIZE);
+    if (strlen(samplerate) == 0) strncpy(samplerate, SAMPLERATE, BUF_SIZE);
+}
+
 static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    char buf[BUF_SIZE];
+    buf_t buf;
 
     switch(uMsg)
     {
@@ -118,6 +130,7 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
                 trim(correction, buf);
                 GetDlgItemText(hDlg, IDC_DIRECT_SAMPLING, buf, BUF_SIZE);
                 trim(directsampling, buf);
+                validate();
                 EndDialog(hDlg, wParam); 
                 return TRUE;
             }
@@ -158,14 +171,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
     return TRUE;
 }
 
-//////////////////////////////////////
+//////////// DLL exports ///////////////
 
 bool LIBAPI InitHW(char *name, char *model, int *type)
 {
-    strncpy(hostname, HOSTNAME, BUF_SIZE);
-    strncpy(port, PORT, BUF_SIZE);
-    strncpy(samplerate, SAMPLERATE, BUF_SIZE);
-    
+    validate();
     *type = 3; // 16 bit, little endian
     strcpy(name, TITLE);
     strcpy(model, "");
@@ -191,7 +201,7 @@ void LIBAPI CloseHW(void)
 
 int LIBAPI StartHW(long freq)
 {
-    char buf[BUF_SIZE];
+    buf_t buf;
     SOCKADDR_IN server;
     struct hostent *host;
 
