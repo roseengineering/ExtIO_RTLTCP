@@ -91,8 +91,8 @@ static bool issue_command(int cmd, int param)
 
 static void trim(char *dest, char *s) {
     int l = strlen(s);
-    while(isspace(s[l - 1])) --l;
-    while(*s && isspace(*s)) ++s, --l;
+    while(l && isspace(s[l - 1])) l--;
+    while(l && *s && isspace(*s)) s++, l--;
     strncpy(dest, s, l);
     dest[l] = 0;
 }
