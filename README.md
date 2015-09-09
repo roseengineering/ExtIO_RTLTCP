@@ -49,7 +49,7 @@ I recommend the following sample rate values to start.
 * 600000
 * 300000
 
-The other options are gain, frequency correction in kilohertz,
+The other options are gain, frequency correction in units of 100 hertz,
 and direct sampling mode.
 
 A blank value for an option (other than sample rate) 
