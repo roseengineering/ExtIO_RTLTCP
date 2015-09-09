@@ -101,6 +101,15 @@ static void trim(char *dest, char *s) {
     dest[l] = 0;
 }
 
+static void closethread(void)
+{
+    if (thread != NULL) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+        thread = NULL;
+    }
+}
+
 static void validate(void)
 {
     if (strlen(hostname) == 0) strncpy(hostname, HOSTNAME, BUF_SIZE);
@@ -196,6 +205,7 @@ bool LIBAPI OpenHW(void)
 
 void LIBAPI CloseHW(void)
 {
+    closethread();
     WSACleanup();
 }
 
@@ -206,11 +216,7 @@ int LIBAPI StartHW(long freq)
     struct hostent *host;
 
     // close thread 
-    if (thread != NULL) {
-        WaitForSingleObject(thread, INFINITE);
-        CloseHandle(thread);
-        thread = NULL;
-    }
+    closethread();
 
     // open socket
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
