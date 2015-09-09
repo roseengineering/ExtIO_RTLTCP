@@ -70,10 +70,11 @@ at slower sampling rates.
 A GUI option could be added to set this manually.  At
 the moment this value is hardcoded.
 
-I previously had issues with threading.  Sometimes 
-when quitting HDSDR, WINE crashed with a
-page fault.  But I fixed the issue by wrapping the
-threading code in a critical section.
+I have been having issues with threading.  Sometimes 
+when quitting HDSDR, WINE crashes with a
+page fault.  I have tried to fix the crashing by wrapping the
+threading code in a critical section.  It crashes less now
+but it still does.
 
 I have not tested the ExtIO DLL under Windows yet.
 
