@@ -36,7 +36,8 @@
 typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
-static SOCKET sock = INVALID_SOCKET;
+static SOCKET sock;
+static HANDLE thread = NULL;
 static HMODULE hinst;
 static CRITICAL_SECTION cs;
 
@@ -98,6 +99,15 @@ static void trim(char *dest, char *s) {
     while(l && *s && isspace(*s)) s++, l--;
     strncpy(dest, s, l);
     dest[l] = 0;
+}
+
+static void closethread(void)
+{
+    if (thread != NULL) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+        thread = NULL;
+    }
 }
 
 static void validate(void)
@@ -195,6 +205,7 @@ bool LIBAPI OpenHW(void)
 
 void LIBAPI CloseHW(void)
 {
+    closethread();
     WSACleanup();
 }
 
@@ -203,7 +214,9 @@ int LIBAPI StartHW(long freq)
     buf_t buf;
     SOCKADDR_IN server;
     struct hostent *host;
-    HANDLE thread;
+
+    // close thread 
+    closethread();
 
     // open socket
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -237,7 +250,6 @@ int LIBAPI StartHW(long freq)
     // create consumer thread
     thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
     if (thread == NULL) return 0;
-    CloseHandle(thread);
 
     // set sample rate
     issue_command(SET_SAMPLE_RATE, atoi(samplerate));
@@ -274,7 +286,7 @@ void LIBAPI StopHW(void)
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
 {
-    if (sock != INVALID_SOCKET) issue_command(SET_CENTER_FREQ, freq);
+    if (thread != NULL) issue_command(SET_CENTER_FREQ, freq);    
     return 0; // within the limits of the hardware
 }
 
