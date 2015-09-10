@@ -195,7 +195,9 @@ bool LIBAPI OpenHW(void)
 
 void LIBAPI CloseHW(void)
 {
+    EnterCriticalSection(&cs);
     WSACleanup();
+    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
