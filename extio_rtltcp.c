@@ -31,7 +31,7 @@
 
 #define HOSTNAME   "localhost"
 #define PORT       "1234"
-#define SAMPLERATE "1800000"
+#define SAMPLERATE "2400000"
 
 typedef char buf_t[BUF_SIZE];
 
