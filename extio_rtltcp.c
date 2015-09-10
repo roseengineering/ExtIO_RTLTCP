@@ -36,7 +36,7 @@
 typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
-static SOCKET sock = INVALID_SOCKET;
+static SOCKET sock;
 static HMODULE hinst;
 static CRITICAL_SECTION cs;
 
@@ -60,7 +60,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
     int n = SAMPLE_PAIRS * sizeof(raw_t);
 
     EnterCriticalSection(&cs);
-    while (sock != INVALID_SOCKET) {
+    while (1) {
         ret = recv(sock, (char *) &raw[i], n - i, 0);
         if (ret == 0 || ret == SOCKET_ERROR) break;
         i += ret;
@@ -86,6 +86,7 @@ static bool issue_command(int cmd, int param)
     } command;
     #pragma pack(pop)
     
+    if (sock == INVALID_SOCKET) return false;
     command.cmd = cmd;
     command.param = htonl(param);
     int ret = send(sock, (char *) &command, sizeof(command), 0);
@@ -188,16 +189,15 @@ bool LIBAPI OpenHW(void)
 {
     WSADATA wsd;
     if (WSAStartup(MAKEWORD(2,2), &wsd) != 0) return false;
-    validate();
     InitializeCriticalSection(&cs);
+    validate();
+    sock = INVALID_SOCKET;
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
-    EnterCriticalSection(&cs);
     WSACleanup();
-    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
@@ -272,11 +272,14 @@ int LIBAPI StartHW(long freq)
 void LIBAPI StopHW(void)
 {
     closesocket(sock);
+    EnterCriticalSection(&cs);
+    sock = INVALID_SOCKET;
+    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
 {
-    if (sock != INVALID_SOCKET) issue_command(SET_CENTER_FREQ, freq);
+    issue_command(SET_CENTER_FREQ, freq);
     return 0; // within the limits of the hardware
 }
 
