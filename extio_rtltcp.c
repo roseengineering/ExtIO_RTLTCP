@@ -36,10 +36,10 @@
 typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
-static SOCKET sock;
 static HMODULE hinst;
 static CRITICAL_SECTION cs;
 static volatile bool active;
+static volatile SOCKET sock;
 
 static buf_t hostname;
 static buf_t port;
@@ -51,18 +51,19 @@ static buf_t directsampling;
 static DWORD WINAPI consumer(LPVOID lpParam)
 {
     typedef int16_t iq_t[2];
-    typedef uint8_t raw_t[2]; 
+    typedef uint8_t raw_t[2];
 
     static iq_t iq[SAMPLE_PAIRS];
     static raw_t raw[SAMPLE_PAIRS];
-    
+
+    SOCKET so = (SOCKET) lpParam;
     int k, ret;
     int i = 0;
     int n = SAMPLE_PAIRS * sizeof(raw_t);
 
     EnterCriticalSection(&cs);
     while (active) {
-        ret = recv(sock, (char *) &raw[i], n - i, 0);
+        ret = recv(so, (char *) &raw[i], n - i, 0);
         if (ret == 0 || ret == SOCKET_ERROR) break;
         i += ret;
         if (n - i == 0) {
@@ -74,7 +75,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
             callback(SAMPLE_PAIRS, 0, 0, iq);
         }        
     }
-    closesocket(sock);
+    closesocket(so);
     LeaveCriticalSection(&cs);
     return 0;
 }
@@ -168,10 +169,19 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
     switch (ul_reason_for_call)
     {
     case DLL_PROCESS_ATTACH:
+        InitializeCriticalSection(&cs);
         hinst=hModule;
+        WSADATA wsd;
+        WSAStartup(MAKEWORD(2,2), &wsd);
+        break;
+    case DLL_PROCESS_DETACH:
+        active = false;
+        EnterCriticalSection(&cs);
+        WSACleanup();
+        LeaveCriticalSection(&cs);
+        break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
-    case DLL_PROCESS_DETACH:
         break;
     }
     return TRUE;
@@ -189,19 +199,12 @@ bool LIBAPI InitHW(char *name, char *model, int *type)
 
 bool LIBAPI OpenHW(void)
 {
-    WSADATA wsd;
-    if (WSAStartup(MAKEWORD(2,2), &wsd) != 0) return false;
-    InitializeCriticalSection(&cs);
     validate();
-    active = false;
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
-    EnterCriticalSection(&cs);
-    WSACleanup();
-    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
@@ -212,9 +215,7 @@ int LIBAPI StartHW(long freq)
     HANDLE thread;
 
     // open socket
-    EnterCriticalSection(&cs);
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    LeaveCriticalSection(&cs);
     if (sock == INVALID_SOCKET) return 0;
 
     // set hostname
@@ -242,9 +243,11 @@ int LIBAPI StartHW(long freq)
         return 0;
     }    
 
-    // create consumer thread
+    // have an active connection now
     active = true;
-    thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
+
+    // create consumer thread
+    thread = CreateThread(NULL, 0, consumer, (LPVOID) sock, 0, 0);
     if (thread == NULL) return 0;
     CloseHandle(thread);
 
