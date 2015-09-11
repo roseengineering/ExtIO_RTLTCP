@@ -73,8 +73,9 @@ the moment this value is hardcoded.
 I have been having issues with threading.  Sometimes 
 when quitting HDSDR, WINE crashes with a
 page fault.  The threading code is now wrapped in a critical section.  
-The DLL process detach event is also caught.
-When fired the thread is told to close.
+The DLL process detach event is also caught and the thread is told to close.
+
+The ExtIO DLL does work with HDSDR under Windows.
 
 ## FYI
 
