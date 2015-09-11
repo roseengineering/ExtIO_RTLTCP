@@ -169,17 +169,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
     switch (ul_reason_for_call)
     {
     case DLL_PROCESS_ATTACH:
-        InitializeCriticalSection(&cs);
         hinst=hModule;
-        WSADATA wsd;
-        WSAStartup(MAKEWORD(2,2), &wsd);
-        break;
     case DLL_PROCESS_DETACH:
-        active = false;
-        EnterCriticalSection(&cs);
-        WSACleanup();
-        LeaveCriticalSection(&cs);
-        break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
         break;
@@ -199,12 +190,19 @@ bool LIBAPI InitHW(char *name, char *model, int *type)
 
 bool LIBAPI OpenHW(void)
 {
+    WSADATA wsd;
+    WSAStartup(MAKEWORD(2,2), &wsd);
+    InitializeCriticalSection(&cs);
     validate();
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
+    active = false;
+    EnterCriticalSection(&cs);
+    WSACleanup();
+    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
