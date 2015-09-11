@@ -39,6 +39,7 @@ static void (* callback)(int, int, float, void *);
 static SOCKET sock;
 static HMODULE hinst;
 static CRITICAL_SECTION cs;
+static volatile bool active;
 
 static buf_t hostname;
 static buf_t port;
@@ -60,7 +61,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
     int n = SAMPLE_PAIRS * sizeof(raw_t);
 
     EnterCriticalSection(&cs);
-    while (1) {
+    while (active) {
         ret = recv(sock, (char *) &raw[i], n - i, 0);
         if (ret == 0 || ret == SOCKET_ERROR) break;
         i += ret;
@@ -73,6 +74,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
             callback(SAMPLE_PAIRS, 0, 0, iq);
         }        
     }
+    closesocket(sock);
     LeaveCriticalSection(&cs);
     return 0;
 }
@@ -86,7 +88,7 @@ static bool issue_command(int cmd, int param)
     } command;
     #pragma pack(pop)
     
-    if (sock == INVALID_SOCKET) return false;
+    if (!active) return false;
     command.cmd = cmd;
     command.param = htonl(param);
     int ret = send(sock, (char *) &command, sizeof(command), 0);
@@ -191,13 +193,15 @@ bool LIBAPI OpenHW(void)
     if (WSAStartup(MAKEWORD(2,2), &wsd) != 0) return false;
     InitializeCriticalSection(&cs);
     validate();
-    sock = INVALID_SOCKET;
+    active = false;
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
+    EnterCriticalSection(&cs);
     WSACleanup();
+    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
@@ -208,7 +212,9 @@ int LIBAPI StartHW(long freq)
     HANDLE thread;
 
     // open socket
+    EnterCriticalSection(&cs);
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    LeaveCriticalSection(&cs);
     if (sock == INVALID_SOCKET) return 0;
 
     // set hostname
@@ -237,6 +243,7 @@ int LIBAPI StartHW(long freq)
     }    
 
     // create consumer thread
+    active = true;
     thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
     if (thread == NULL) return 0;
     CloseHandle(thread);
@@ -271,10 +278,7 @@ int LIBAPI StartHW(long freq)
 
 void LIBAPI StopHW(void)
 {
-    closesocket(sock);
-    EnterCriticalSection(&cs);
-    sock = INVALID_SOCKET;
-    LeaveCriticalSection(&cs);
+    active = false;
 }
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
