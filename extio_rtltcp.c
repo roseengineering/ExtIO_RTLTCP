@@ -74,11 +74,10 @@ static DWORD WINAPI consumer(LPVOID lpParam)
             callback(SAMPLE_PAIRS, 0, 0, iq);
         }        
     }
-    closesocket(sock);
     return 0;
 }
 
-static bool issue_command(int cmd, int param)
+static void issue_command(int cmd, int param)
 {
     #pragma pack(push, 1)
     struct {
@@ -87,11 +86,11 @@ static bool issue_command(int cmd, int param)
     } command;
     #pragma pack(pop)
     
-    if (!active) return false;
-    command.cmd = cmd;
-    command.param = htonl(param);
-    int ret = send(sock, (char *) &command, sizeof(command), 0);
-    return ret == sizeof(command);
+    if (active) {
+        command.cmd = cmd;
+        command.param = htonl(param);
+        send(sock, (char *) &command, sizeof(command), 0);
+    }
 }
 
 static void trim(char *dest, char *s) {
@@ -272,6 +271,7 @@ int LIBAPI StartHW(long freq)
 void LIBAPI StopHW(void)
 {
     active = false;
+    closesocket(sock);
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
 }
