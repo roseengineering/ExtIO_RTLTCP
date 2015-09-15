@@ -37,9 +37,10 @@ typedef char buf_t[BUF_SIZE];
 
 static void (* callback)(int, int, float, void *);
 static HMODULE hinst;
-static CRITICAL_SECTION cs;
+
 static volatile bool active;
-static volatile SOCKET sock;
+static SOCKET sock;
+static HANDLE thread;
 
 static buf_t hostname;
 static buf_t port;
@@ -56,14 +57,12 @@ static DWORD WINAPI consumer(LPVOID lpParam)
     static iq_t iq[SAMPLE_PAIRS];
     static raw_t raw[SAMPLE_PAIRS];
 
-    SOCKET so = (SOCKET) lpParam;
     int k, ret;
     int i = 0;
     int n = SAMPLE_PAIRS * sizeof(raw_t);
 
-    EnterCriticalSection(&cs);
     while (active) {
-        ret = recv(so, (char *) &raw[i], n - i, 0);
+        ret = recv(sock, (char *) &raw[i], n - i, 0);
         if (ret == 0 || ret == SOCKET_ERROR) break;
         i += ret;
         if (n - i == 0) {
@@ -75,8 +74,7 @@ static DWORD WINAPI consumer(LPVOID lpParam)
             callback(SAMPLE_PAIRS, 0, 0, iq);
         }        
     }
-    closesocket(so);
-    LeaveCriticalSection(&cs);
+    closesocket(sock);
     return 0;
 }
 
@@ -192,17 +190,13 @@ bool LIBAPI OpenHW(void)
 {
     WSADATA wsd;
     WSAStartup(MAKEWORD(2,2), &wsd);
-    InitializeCriticalSection(&cs);
     validate();
     return true;
 }
 
 void LIBAPI CloseHW(void)
 {
-    active = false;
-    EnterCriticalSection(&cs);
     WSACleanup();
-    LeaveCriticalSection(&cs);
 }
 
 int LIBAPI StartHW(long freq)
@@ -210,7 +204,6 @@ int LIBAPI StartHW(long freq)
     buf_t buf;
     SOCKADDR_IN server;
     struct hostent *host;
-    HANDLE thread;
 
     // open socket
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -245,9 +238,8 @@ int LIBAPI StartHW(long freq)
     active = true;
 
     // create consumer thread
-    thread = CreateThread(NULL, 0, consumer, (LPVOID) sock, 0, 0);
+    thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
     if (thread == NULL) return 0;
-    CloseHandle(thread);
 
     // set sample rate
     issue_command(SET_SAMPLE_RATE, atoi(samplerate));
@@ -280,6 +272,8 @@ int LIBAPI StartHW(long freq)
 void LIBAPI StopHW(void)
 {
     active = false;
+    WaitForSingleObject(thread, INFINITE);
+    CloseHandle(thread);
 }
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
