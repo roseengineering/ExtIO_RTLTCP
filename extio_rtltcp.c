@@ -10,30 +10,38 @@
 #include <string.h>
 #include "resource.h"
 
+#define HOSTENT struct hostent
+
 // rtl_tcp constants
 
-#define SET_CENTER_FREQ     1
-#define SET_SAMPLE_RATE     2
-#define SET_TUNER_GAIN_MODE 3  // 0 or 1
-#define SET_TUNER_GAIN      4  // gain * 10
-#define SET_FREQ_CORRECTION 5  // khz
-#define SET_DIRECT_SAMPLING 9  // 0, 1(I), 2(Q)
+#define SET_CENTER_FREQ      1
+#define SET_SAMPLE_RATE      2
+#define SET_GAIN_MODE        3  // 0 (auto) or 1 (manual)
+#define SET_GAIN             4  // db * 10
+#define SET_FREQ_CORRECTION  5  // khz
+#define SET_DIRECT_SAMPLING  9  // 0, 1(I), 2(Q)
+#define SET_GAIN_INDEX       13 // 0 ...
 
 // ExtIO constants
 
 #define LIBAPI __declspec(dllexport) __stdcall
-#define TITLE "ExtIO_RTLTCP"
-#define BUF_SIZE 1024
-#define SAMPLE_PAIRS (4 * 1024)
 #define STATUS_SAMPLE_RATE 100
 
-// defaults
+// constants
+
+#define SAMPLE_PAIRS (4 * 1024)
+#define BUF_SIZE 1024
+#define TITLE "ExtIO_RTLTCP"
 
 #define HOSTNAME   "localhost"
 #define PORT       "1234"
 #define SAMPLERATE "2400000"
 
+// types
+
 typedef char buf_t[BUF_SIZE];
+
+// variables
 
 static void (* callback)(int, int, float, void *);
 static HMODULE hinst;
@@ -45,34 +53,30 @@ static HANDLE thread;
 static buf_t hostname;
 static buf_t port;
 static buf_t samplerate;
-static buf_t gain;
 static buf_t correction;
 static buf_t directsampling;
 
+static uint8_t raw[2 * SAMPLE_PAIRS];
+static int16_t iq[2 * SAMPLE_PAIRS];
+
 static DWORD WINAPI consumer(LPVOID lpParam)
 {
-    typedef int16_t iq_t[2];
-    typedef uint8_t raw_t[2];
-
-    static iq_t iq[SAMPLE_PAIRS];
-    static raw_t raw[SAMPLE_PAIRS];
-
-    int k, ret;
-    int i = 0;
-    int n = SAMPLE_PAIRS * sizeof(raw_t);
+    char *data = (char *) raw;
+    int index, bytesleft, n;
 
     while (active) {
-        ret = recv(sock, (char *) &raw[i], n - i, 0);
-        if (ret == 0 || ret == SOCKET_ERROR) break;
-        i += ret;
-        if (n - i == 0) {
-            i = 0;
-            for (k = 0; k < SAMPLE_PAIRS; k++) {
-                iq[k][0] = (raw[k][0] - 127) << 7;
-                iq[k][1] = (raw[k][1] - 127) << 7;
-            }
-            callback(SAMPLE_PAIRS, 0, 0, iq);
-        }        
+        index = 0;
+        bytesleft = sizeof(raw);
+        while(bytesleft > 0) {
+            n = recv(sock, &data[index], bytesleft, 0);
+            if (n <= 0) return 0;
+            bytesleft -= n;
+            index += n;
+        }
+        for (n = 0; n < 2 * SAMPLE_PAIRS; n++) {
+            iq[n] = (raw[n] - 127) << 7;
+        }
+        callback(SAMPLE_PAIRS, 0, 0, iq);
     }
     return 0;
 }
@@ -104,8 +108,8 @@ static void trim(char *dest, char *s) {
 static void validate(void)
 {
     if (strlen(hostname) == 0) strncpy(hostname, HOSTNAME, BUF_SIZE);
-    if (strlen(port) == 0) strncpy(port, PORT, BUF_SIZE);
-    if (strlen(samplerate) == 0) strncpy(samplerate, SAMPLERATE, BUF_SIZE);
+    if (atoi(port) == 0) strncpy(port, PORT, BUF_SIZE);
+    if (atoi(samplerate) == 0) strncpy(samplerate, SAMPLERATE, BUF_SIZE);
 }
 
 static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -128,8 +132,6 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
                 trim(port, buf);
                 GetDlgItemText(hDlg, IDC_SAMPLE_RATE, buf, BUF_SIZE);
                 trim(samplerate, buf);
-                GetDlgItemText(hDlg, IDC_GAIN, buf, BUF_SIZE);
-                trim(gain, buf);
                 GetDlgItemText(hDlg, IDC_CORRECTION, buf, BUF_SIZE);
                 trim(correction, buf);
                 GetDlgItemText(hDlg, IDC_DIRECT_SAMPLING, buf, BUF_SIZE);
@@ -144,7 +146,6 @@ static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM l
             SetDlgItemText(hDlg, IDC_HOSTNAME, hostname);
             SetDlgItemText(hDlg, IDC_PORT, port);
             SetDlgItemText(hDlg, IDC_SAMPLE_RATE, samplerate);
-            SetDlgItemText(hDlg, IDC_GAIN, gain);
             SetDlgItemText(hDlg, IDC_CORRECTION, correction);
             SetDlgItemText(hDlg, IDC_DIRECT_SAMPLING, directsampling);
             return TRUE;
@@ -179,6 +180,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 
 bool LIBAPI InitHW(char *name, char *model, int *type)
 {
+    validate();
     *type = 3; // 16 bit, little endian
     strcpy(name, TITLE);
     strcpy(model, "");
@@ -189,7 +191,6 @@ bool LIBAPI OpenHW(void)
 {
     WSADATA wsd;
     WSAStartup(MAKEWORD(2,2), &wsd);
-    validate();
     return true;
 }
 
@@ -202,7 +203,7 @@ int LIBAPI StartHW(long freq)
 {
     buf_t buf;
     SOCKADDR_IN server;
-    struct hostent *host;
+    HOSTENT *host;
 
     // open socket
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -237,22 +238,13 @@ int LIBAPI StartHW(long freq)
     active = true;
 
     // create consumer thread
-    thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
+    // thread = CreateThread(NULL, 0, consumer, 0, 0, 0);
+    thread = (HANDLE) _beginthread(consumer, 0, NULL );
     if (thread == NULL) return 0;
 
     // set sample rate
     issue_command(SET_SAMPLE_RATE, atoi(samplerate));
     callback(-1, STATUS_SAMPLE_RATE, 0, NULL);
-
-    if (strlen(gain)) {
-        int db = (int)(atof(gain) * 10);
-        if (db == 0) {
-            issue_command(SET_TUNER_GAIN_MODE, 0);
-        } else {
-            issue_command(SET_TUNER_GAIN_MODE, 1);
-            issue_command(SET_TUNER_GAIN, db);
-        }
-    }
 
     // set frequency correction
     if (strlen(correction)) {
@@ -272,8 +264,11 @@ void LIBAPI StopHW(void)
 {
     active = false;
     closesocket(sock);
-    WaitForSingleObject(thread, INFINITE);
-    CloseHandle(thread);
+    if (thread != NULL) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+        thread = NULL;
+    }
 }
 
 int LIBAPI SetHWLO(long freq)  // same freq as starthw
@@ -301,6 +296,26 @@ void LIBAPI ShowGUI(void)
 {
     HWND hDlg = CreateDialog(hinst, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
     ShowWindow(hDlg, SW_SHOW);
+}
+
+int LIBAPI GetAttenuators(int atten_idx, float *attenuation)
+{
+    if (atten_idx < 30) {
+        *attenuation = atten_idx;
+        return 0;
+    }
+    return 1;
+}
+
+int LIBAPI SetAttenuator(int atten_idx)
+{
+    if (atten_idx == 0) {
+        issue_command(SET_GAIN_MODE, 0);
+    } else {
+        issue_command(SET_GAIN_MODE, 1);
+        issue_command(SET_GAIN_INDEX, atten_idx - 1);
+    }
+    return 0;
 }
 
 
