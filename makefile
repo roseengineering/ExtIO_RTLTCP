@@ -11,8 +11,11 @@ resource.o: resource.rc resource.h
 	${WINDRES} -o resource.o resource.rc
 
 clean:
-	rm -f *~ *.o ${DLL}
+	rm -f *~ *.o
 	
+distclean: clean
+	rm -f ${DLL}
+
 dump:
 	i686-w64-mingw32-objdump -p ${DLL}
 
